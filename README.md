@@ -14,6 +14,14 @@
 * **Trade Implementation:** Position sizing, turnover control, and cost management (slippage, spreads, rolls).
 * **Regulatory Compliance:** Designed for Investment Company Act of 1940; **Rule 18f-4** derivatives program, VaR limits, liquidity program, daily holdings transparency; **Cayman subsidiary** for commodities (RIC compliance).
 
+## Table of Contents
+
+- [Trend-Following Signal Construction](#trend-following-signal-construction)
+- [Carry Signal Construction](#carry-signal-construction)
+- [Portfolio Construction & Signal Integration](#portfolio-construction--signal-integration)
+- [Machine-Learning Regime Filter](#machine-learning-regime-filter)
+- [Risk Management Framework](#risk-management-framework)
+
 ---
 
 ## Trend-Following Signal Construction
