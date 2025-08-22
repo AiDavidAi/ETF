@@ -1,7 +1,158 @@
 # ETF
-TEST ETF
-# Create a text file with the complete build sheet for the multi-asset derivatives ETF.
-content = """Multi-Asset Derivatives ETF — Build Sheet (Algorithms & Programs)
+# Multi-Asset Derivatives ETF Strategy Design
+
+## Introduction and Strategy Overview
+
+**Objective:** Design a publicly traded ETF that uses **direct derivatives (futures)** on equities, bonds, and commodities to deliver a **leveraged multi-asset strategy**. The approach combines **trend-following momentum** and **carry** signals, augmented by a **machine-learning (ML) regime filter**, all within a robust risk management and regulatory compliance framework. By using futures (instead of an ETF-of-leveraged-ETFs structure), the strategy gains capital efficiency, liquidity, and precise control of leverage and risk exposures ([Return Stacked](https://www.returnstacked.com/carry-the-yield-ride-the-trend-a-strategic-partnership/#:~:text=Both%20trend%20and%20carry%20strategies)). The ETF will be actively managed but systematic, aiming for **transparent, rules-based execution** – essential for scaling and mitigating behavioral biases ([Return Stacked](https://www.returnstacked.com/carry-the-yield-ride-the-trend-a-strategic-partnership/#:~:text=Systematic%20approaches%20remove%20much%20of)).
+
+**Key components:**
+
+* **Trend-Following Signals:** Capture 12-month price momentum (time-series trend) across global equity index futures, Treasury/bond futures, and commodity futures.
+* **Carry Signals:** Harvest roll yield/term-structure premia in each asset (e.g., futures basis, yield differentials) ([Carry survey PDF](https://spinup-000d1a-wp-offload-media.s3.amazonaws.com/faculty/wp-content/uploads/sites/3/2019/04/Carry.pdf#:~:text=For%20instance%2C%20the%20carry%20for)).
+* **ML Regime Filter:** Supervised model distinguishes **risk-on** vs **risk-off** environments and adjusts exposure accordingly.
+* **Risk Management:** Target \~10% annualized volatility with daily scaling; **drawdown-based exposure governor** to cut gross in stress.
+* **Trade Implementation:** Position sizing, turnover control, and cost management (slippage, spreads, rolls).
+* **Regulatory Compliance:** Designed for Investment Company Act of 1940; **Rule 18f-4** derivatives program, VaR limits, liquidity program, daily holdings transparency; **Cayman subsidiary** for commodities (RIC compliance).
+
+---
+
+## Trend-Following Signal Construction
+
+**Signal definition:** Classic **time-series momentum** on each asset’s price (inspired by managed-futures research). Primary indicator: **12-month momentum** (total return over the past 12 months, skipping the most recent month). Positive → **long**; negative → **short** ([AQR primer](https://www.aqr.com/-/media/AQR/Documents/Insights/Alternative-Thinking/Understanding-Managed-Futures-82422.pdf)). Empirically, medium-term momentum persists across assets ([Quantpedia overview](https://quantpedia.com/strategies/momentum-effect-in-commodities)).
+
+* **Cadence:** Compute monthly; daily guardrail to catch large reversals.
+* **Multi-horizon option:** Blend 3m/6m/12m (12m heaviest) to reduce whipsaws.
+* **Shorting symmetry:** Futures allow symmetric long/short positioning (true time-series momentum).
+
+**By asset class:**
+
+* *Equity index futures:* Trend flips reduce participation in protracted bear markets and capture bull legs (crisis-alpha behavior in bear regimes) ([AQR](https://www.aqr.com/-/media/AQR/Documents/Insights/Alternative-Thinking/Understanding-Managed-Futures-82422.pdf)).
+* *Rates futures:* Trend adapts duration exposure (long when yields fall, short when they rise).
+* *Commodity futures:* Trade each market’s own trend; useful diversification in inflationary/supply-shock regimes ([AQR](https://www.aqr.com/-/media/AQR/Documents/Insights/Alternative-Thinking/Understanding-Managed-Futures-82422.pdf)).
+
+**Position sizing:** **Volatility-scaled** so each position contributes similar ex-ante risk; inverse-vol weights lower risk concentration and auto-downshift in spikes ([AQR “Demystifying Managed Futures”](https://www.aqr.com/-/media/AQR/Documents/Insights/Journal-Article/Demystifying-Managed-Futures.pdf)).
+
+---
+
+## Carry Signal Construction
+
+**Carry = expected return if price is unchanged** (yield/financing/roll). Strategy: **long high-carry, short low-carry**. Carry has documented efficacy across assets (typical Sharpe \~0.8 in isolation, higher when diversified) ([Carry survey PDF](https://spinup-000d1a-wp-offload-media.s3.amazonaws.com/faculty/wp-content/uploads/sites/3/2019/04/Carry.pdf)).
+
+* **Equities:** Approximate carry via **dividend yield – financing rate** or futures basis. Secondary to momentum.
+* **Bonds:** **Yield + roll-down** along the curve; favor higher implied carry/DV01-efficient exposures.
+* **Commodities:** **Roll yield** from term structure; **backwardation = positive carry** (tilt long), **contango = negative** (tilt short). Momentum and carry often complement here ([Quantpedia](https://quantpedia.com/strategies/momentum-effect-in-commodities)).
+* **FX (optional):** Interest-rate differential.
+
+**Implementation:** Standardize carry to z-scores per asset class; rank & allocate to top/bottom cohorts; vol-scale; low turnover.
+
+---
+
+## Portfolio Construction & Signal Integration
+
+**Two-sleeve architecture:** Manage **Trend** and **Carry** sleeves separately to defined **risk budgets** (e.g., 50/50 risk), then **overlay**.
+
+* If signals **agree** on an asset (long/long or short/short), conviction ↑.
+* If **conflict**, net down or weight by confidence.
+* Equal-risk allocation across asset classes to avoid dominance; broad diversification boosts the **diversification ratio** and smooths returns ([Return Stacked](https://www.returnstacked.com/carry-the-yield-ride-the-trend-a-strategic-partnership/#:~:text=Diversification%20Ratio%20%3D%20Weighted%20Average)).
+
+*Reference for equal-risk sleeves in managed-futures indices:* KMLM’s index weights markets by equal risk within sleeves ([Kraneshares KMLM](https://kraneshares.com/kmlm/#:~:text=KMLM%20is%20benchmarked%20to%20the)).
+
+---
+
+## Machine-Learning Regime Filter
+
+**Goal:** Classify **risk-on vs risk-off** regimes and **scale exposure** accordingly.
+
+* **Labels:** Risk-off when representative portfolios (e.g., 60/40 or equity factor) enter top-tail drawdowns or when vol/credit stress regimes emerge.
+* **Features:** Realized vol & jumps, VIX term structure, credit & term spreads, breadth, macro nowcasts.
+* **Model:** Calibrated gradient-boosted trees / logistic; output **p(risk-off)**.
+* **Policy:** `exposure_scale = 1 − γ · p_off` (piecewise-linear, capped), plus minor tilts (e.g., emphasize bonds in risk-off).
+
+Research shows crash-probability ML can improve tactical allocations over simple rules/HMMs (e.g., regime prediction for factor drawdowns) ([SSRN example](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4689090)).
+
+---
+
+## Risk Management Framework
+
+**1) Volatility targeting:** Target **\~10% annualized** (≈0.63% daily). Daily estimator drives a global scale factor on positions; stabilizes risk across regimes ([AQR](https://www.aqr.com/-/media/AQR/Documents/Insights/Journal-Article/Demystifying-Managed-Futures.pdf)).
+
+**2) Drawdown governor:** Map trailing drawdown → **gross exposure scaler** (e.g., −20% gross by −5% DD; −40% by −10%; etc.). Acts as a portfolio-level circuit breaker; gradually restores as equity recovers (general discussion: drawdown control primers such as [Surmount blog](https://surmount.ai/blogs/understanding-drawdown-control-in-automated-trading-strategies)).
+
+**3) Position limits & diversification:** Caps on per-market risk, sector/asset-class risk, and net beta. Aim for high diversification ratio ([Return Stacked](https://www.returnstacked.com/carry-the-yield-ride-the-trend-a-strategic-partnership/#:~:text=Diversification%20Ratio%20%3D%20Weighted%20Average)).
+
+**4) Monitoring & stops:** Daily VaR/ES, stress tests (’08, ’11, ’20, ’22), breach protocols; hard daily loss alert (e.g., −4%).
+
+**5) Leverage & margin:** With 10% vol target and diversified futures, gross notional typically **\~200–400% of NAV** while posted margin remains a fraction; excess cash in T-bills ([AQR](https://www.aqr.com/-/media/AQR/Documents/Insights/Journal-Article/Demystifying-Managed-Futures.pdf)). Manage to SEC **18f-4** VaR limits (see below).
+
+**6) Roll & liquidity:** Staggered rolls (TWAP over window), calendar-spread awareness; only **high-liquidity** contracts.
+
+**7) Transaction costs:** Slow signals (12m momentum, slow carry), **banding & cooldowns**, optimized execution (TWAP/VWAP/POV). Sophisticated managers can keep costs ≲1%/yr; poor execution can be 3–4%/yr (see AQR cost discussions in the references above).
+
+---
+
+## Trade Implementation & Operations
+
+* **Derivatives & margin:** Accounts with FCMs; initial + variation margin; cash collateral in **T-bills** or government MMFs (common practice in managed-futures ETFs like DBMF per prospectus).
+* **Execution:** Daily/weekly rebalances as needed; limit/participation algos; low participation rates; netting across sleeves.
+* **Turnover & slippage:** Expect moderate turnover (monthly cadence + event-driven flips). Budget slippage via spread/vol/participation models.
+* **Rolling:** Start well before expiry; 5-day TWAP typical; integrate carry view (sometimes hold further-out contracts).
+* **Operations:** Independent admin, daily NAV with futures P\&L, custodial collateral, prime/FCM risk reporting.
+* **Creations/redemptions:** Cash for derivative exposure portion; in-kind for collateral where practical. Maintain near-model weights post-flows.
+
+---
+
+## Regulatory & Compliance (ETF under 1940 Act)
+
+**Rule 18f-4 (Derivatives):** Not a “limited derivatives user” (<10% exposure), so operate a full **Derivatives Risk Management Program** with appointed **Derivatives Risk Manager**, **daily VaR** (absolute ≤ 20% NAV at 99%/20-day or relative VaR ≤ 200% of reference), stress/backtests, board reporting ([Ropes & Gray summary](https://www.ropesgray.com/en/insights/alerts/2020/11/sec-adopts-rule-18f-4-concerning-registered-funds-use-of-derivatives)).
+
+**Liquidity rule (22e-4):** Futures and T-bills treated as **highly liquid**; keep ≥85% highly liquid bucket. No illiquid holdings ([Dechert explainer](https://www.dechert.com/content/dam/dechert%20files/knowledge/publication/2019/6/Drowning-in-Liquidity-the-SECs-New-Liquidity.pdf)).
+
+**Transparency:** Active ETF with **daily holdings disclosure**. Front-running risk mitigated by liquidity, breadth, and incremental trading. Semi-transparent models (e.g., ActiveShares) are optional but likely unnecessary ([Nasdaq overview](https://www.nasdaq.com/articles/active-passive-and-in-between-examining-the-etf-landscape)).
+
+**Tax structure for commodities:** Use a **Cayman subsidiary** (≤20% of assets) to hold commodity futures so the U.S. fund maintains RIC status (see managed-futures ETF prospectuses such as DBMF on **sec.gov**).
+
+**Board oversight & filings:** Derivatives reports to board; N-PORT/N-CEN include derivatives exposures and VaR; comply with Rule 6c-11 (ETF rule).
+
+---
+
+## Implementation Feasibility & Conclusion
+
+* **Viability:** Operationally feasible with precedents (managed-futures ETFs). Liquidity depth supports scaling; ETF wrapper provides daily liquidity.
+* **Modularity:** Clear sleeves (trend/carry), ML overlay, and risk layers aid explainability, compliance, and evolution.
+* **Expected profile:** Historically, diversified trend and carry exhibit **positive returns, low correlation to stocks/bonds, and crisis-alpha characteristics** (stronger in major equity sell-offs). Targeting \~10% vol with drawdown/risk governors aims to cap worst-case losses while participating in long-run premia.
+* **Bottom line:** A transparent, derivatives-based ETF delivering diversified **trend + carry** with **risk-aware leverage** and modern compliance is implementable and commercially defensible.
+
+---
+
+## Sources & Further Reading
+
+* Return Stacked: *Carry the Yield, Ride the Trend* — strategy interplay and diversification
+  [https://www.returnstacked.com/carry-the-yield-ride-the-trend-a-strategic-partnership/](https://www.returnstacked.com/carry-the-yield-ride-the-trend-a-strategic-partnership/)
+
+* AQR: *Understanding Managed Futures* (crisis alpha, trend mechanics)
+  [https://www.aqr.com/-/media/AQR/Documents/Insights/Alternative-Thinking/Understanding-Managed-Futures-82422.pdf](https://www.aqr.com/-/media/AQR/Documents/Insights/Alternative-Thinking/Understanding-Managed-Futures-82422.pdf)
+
+* AQR: *Demystifying Managed Futures* (vol targeting, costs, construction)
+  [https://www.aqr.com/-/media/AQR/Documents/Insights/Journal-Article/Demystifying-Managed-Futures.pdf](https://www.aqr.com/-/media/AQR/Documents/Insights/Journal-Article/Demystifying-Managed-Futures.pdf)
+
+* Carry (Koijen et al.) — cross-asset carry survey
+  [https://spinup-000d1a-wp-offload-media.s3.amazonaws.com/faculty/wp-content/uploads/sites/3/2019/04/Carry.pdf](https://spinup-000d1a-wp-offload-media.s3.amazonaws.com/faculty/wp-content/uploads/sites/3/2019/04/Carry.pdf)
+
+* Quantpedia: Momentum in Commodities — practical summaries and references
+  [https://quantpedia.com/strategies/momentum-effect-in-commodities](https://quantpedia.com/strategies/momentum-effect-in-commodities)
+
+* Kraneshares KMLM (index methodology highlights for risk-balanced sleeves)
+  [https://kraneshares.com/kmlm/](https://kraneshares.com/kmlm/)
+
+* SEC Rule 18f-4 summaries (derivatives use by funds)
+  [https://www.ropesgray.com/en/insights/alerts/2020/11/sec-adopts-rule-18f-4-concerning-registered-funds-use-of-derivatives](https://www.ropesgray.com/en/insights/alerts/2020/11/sec-adopts-rule-18f-4-concerning-registered-funds-use-of-derivatives)
+
+* Liquidity risk management rule (22e-4) overview
+  [https://www.dechert.com/content/dam/dechert%20files/knowledge/publication/2019/6/Drowning-in-Liquidity-the-SECs-New-Liquidity.pdf](https://www.dechert.com/content/dam/dechert%20files/knowledge/publication/2019/6/Drowning-in-Liquidity-the-SECs-New-Liquidity.pdf)
+
+> **Disclaimer:** This is a technical design document, not investment advice. Any live implementation requires rigorous testing, independent risk oversight, and board-approved policies under Rule 18f-4.
+
+Multi-Asset Derivatives ETF — Build Sheet (Algorithms & Programs)
 Date: 2025-08-22
 Owner: David
 
