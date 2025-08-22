@@ -372,13 +372,3 @@ P0: Continuous futures builder; Trend engine; Vol targeting; ERC optimizer; Futu
 P1: Carry engine (all asset classes); Turnover penalty + banding; Roll manager; Collateral/margin forecaster; Stress testing.
 P2: ML regime filter (with calibration); Execution slippage model; Cayman sub controller; AP flows handler; Full 18f-4 reporting pack.
 P3: Advanced covariance (Ledoit–Wolf/HRP); Dynamic sleeve mix; Cost-aware scheduling; Semi-transparent ETF option.
-
-
-"""
-
-path = "/mnt/data/multi_asset_derivatives_etf_build_sheet.txt"
-with open(path, "w") as f:
-    f.write(content)
-
-path
-
