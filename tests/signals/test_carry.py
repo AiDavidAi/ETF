@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
-from signals import equity_carry, bond_carry, commodity_carry
+from signals import equity_carry, bond_carry, commodity_carry, fx_carry
 
 
 def test_equity_carry_standardization():
@@ -38,5 +38,16 @@ def test_commodity_carry_sign():
     signals = commodity_carry(near, far, days_to_expiry=30)
     row = signals.iloc[0]
     assert row["A"] > row["B"]
+    assert signals.mean(axis=1).iloc[0] == pytest.approx(0.0)
+    assert signals.std(axis=1).iloc[0] == pytest.approx(1.0)
+
+
+def test_fx_carry():
+    idx = pd.date_range("2020-01-01", periods=1)
+    domestic = pd.DataFrame({"EURUSD": [0.02], "USDJPY": [0.01]}, index=idx)
+    foreign = pd.DataFrame({"EURUSD": [0.005], "USDJPY": [0.03]}, index=idx)
+    signals = fx_carry(domestic, foreign)
+    row = signals.iloc[0]
+    assert row["EURUSD"] > row["USDJPY"]
     assert signals.mean(axis=1).iloc[0] == pytest.approx(0.0)
     assert signals.std(axis=1).iloc[0] == pytest.approx(1.0)

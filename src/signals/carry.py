@@ -79,3 +79,49 @@ def commodity_carry(
     slope = (far_aligned / near - 1.0) * (days_in_year / days_to_expiry)
     carry = -slope
     return _standardize(carry)
+
+
+def fx_carry(
+    domestic_rate: pd.DataFrame | pd.Series | float,
+    foreign_rate: pd.DataFrame | pd.Series | float,
+) -> pd.DataFrame:
+    """Standardized FX carry based on interest rate differentials.
+
+    Parameters
+    ----------
+    domestic_rate : pd.DataFrame | pd.Series | float
+        Domestic interest rates for each currency pair.
+    foreign_rate : pd.DataFrame | pd.Series | float
+        Foreign interest rates aligned with ``domestic_rate``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Z-scored carry values where positive implies long the higher yielding
+        currency.
+    """
+
+    if isinstance(domestic_rate, (int, float)):
+        dom = pd.DataFrame(domestic_rate, index=foreign_rate.index, columns=foreign_rate.columns)  # type: ignore[arg-type]
+    elif isinstance(domestic_rate, pd.Series):
+        dom = pd.DataFrame(
+            np.repeat(domestic_rate.values[:, None], foreign_rate.shape[1], axis=1),
+            index=foreign_rate.index,
+            columns=foreign_rate.columns,
+        )
+    else:
+        dom = domestic_rate
+
+    if isinstance(foreign_rate, (int, float)):
+        forn = pd.DataFrame(foreign_rate, index=dom.index, columns=dom.columns)
+    elif isinstance(foreign_rate, pd.Series):
+        forn = pd.DataFrame(
+            np.repeat(foreign_rate.values[:, None], dom.shape[1], axis=1),
+            index=dom.index,
+            columns=dom.columns,
+        )
+    else:
+        forn = foreign_rate.reindex_like(dom)
+
+    carry = dom - forn
+    return _standardize(carry)
