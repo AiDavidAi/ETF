@@ -5,6 +5,7 @@ from .twap import generate_twap_schedule
 from .roll import roll_weights
 from .slippage import estimate_slippage
 from .ap import process_ap_flows
+from .schedule import generate_cost_aware_schedule
 
 __all__ = [
     "weights_to_contracts",
@@ -12,4 +13,5 @@ __all__ = [
     "roll_weights",
     "estimate_slippage",
     "process_ap_flows",
+    "generate_cost_aware_schedule",
 ]
