@@ -14,12 +14,7 @@ echo "Upgrading pip..."
 python -m pip install --upgrade pip
 
 echo "Installing dependencies..."
-python -m pip install \
-    numpy \
-    pandas \
-    scipy \
-    scikit-learn \
-    pytest
+python -m pip install -r "$REPO_ROOT/requirements.txt"
 
 # Make project modules importable without packaging
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
