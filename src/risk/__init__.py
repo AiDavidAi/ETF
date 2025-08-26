@@ -1,9 +1,11 @@
 """Risk management utilities."""
 
-from .var import calculate_var
+from .covariance import hrp_weights, ledoit_wolf, sample_covariance
+from .drawdown import scale_by_drawdown
 from .margin import forecast_margin
 from .stress import shock_pnl
-from .covariance import sample_covariance, ledoit_wolf, hrp_weights
+from .var import calculate_var
+from .vol_target import scale_to_target_vol
 
 __all__ = [
     "calculate_var",
@@ -12,4 +14,6 @@ __all__ = [
     "sample_covariance",
     "ledoit_wolf",
     "hrp_weights",
+    "scale_to_target_vol",
+    "scale_by_drawdown",
 ]
