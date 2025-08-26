@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
-from optimizer import band_weights, penalized_band_weights
+from optimizer import penalized_band_weights
 
 
 def test_penalized_band_weights():
