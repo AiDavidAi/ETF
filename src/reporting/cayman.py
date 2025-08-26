@@ -1,5 +1,6 @@
-import pandas as pd
 from typing import Iterable, Tuple
+
+import pandas as pd
 
 
 def allocate_cayman(
@@ -24,6 +25,10 @@ def allocate_cayman(
         ``(domestic, cayman)`` DataFrames with same shape as ``weights``.
     """
     commodity_symbols = list(commodity_symbols)
+    missing = set(commodity_symbols) - set(weights.columns)
+    if missing:
+        raise ValueError(f"Unknown commodity symbols: {sorted(missing)}")
+
     domestic = weights.copy()
     cayman = weights.copy()
     domestic[commodity_symbols] = 0.0
