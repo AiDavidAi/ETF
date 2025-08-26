@@ -13,6 +13,16 @@
 * **Trade Implementation:** Position sizing, turnover control, and cost management (slippage, spreads, rolls).
 * **Regulatory Compliance:** Designed for Investment Company Act of 1940; **Rule 18f-4** derivatives program, VaR limits, liquidity program, daily holdings transparency; **Cayman subsidiary** for commodities (RIC compliance).
 
+### Running the pipeline
+
+Install dependencies and fetch real ETF data with:
+
+```
+python -m src.pipeline --ticker SPY
+```
+
+Add `--start YYYY-MM-DD --end YYYY-MM-DD` to specify a date range or use `--dry-run` for generated sample data.
+
 ## Table of Contents
 
 - [Trend-Following Signal Construction](#trend-following-signal-construction)
