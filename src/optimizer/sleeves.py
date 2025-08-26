@@ -1,5 +1,6 @@
-import pandas as pd
 from typing import Optional
+
+import pandas as pd
 
 from .erc import erc
 
@@ -35,13 +36,9 @@ def combine_sleeves(
     elif method == "risk_parity":
         if returns is None or set(["trend", "carry"]) - set(returns.columns):
             raise ValueError("returns with 'trend' and 'carry' columns required")
-        vol = returns[["trend", "carry"]].std().replace(0, pd.NA)
-        inv = 1.0 / vol
-        inv = inv.fillna(0)
-        if inv.sum() == 0:
-            mix = pd.Series({"trend": 0.5, "carry": 0.5})
-        else:
-            mix = inv / inv.sum()
+        cov = returns[["trend", "carry"]].cov()
+        mix = erc(cov)
+        mix = mix / mix.sum()
     else:  # pragma: no cover - unknown method
         raise ValueError(f"unknown method: {method}")
 

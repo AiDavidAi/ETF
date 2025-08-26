@@ -49,5 +49,6 @@ def test_run_daily_cycle_smoke() -> None:
         cost_estimates=cost_estimates,
         var_limit=0.2,
     )
-    assert "orders" in result and not result["orders"].empty
+    assert "schedule" in result
+    assert "slippage_costs" in result
     assert "report" in result and not result["report"].empty

@@ -8,8 +8,7 @@ from typing import Any, Dict
 import pandas as pd
 
 from .data.continuous_futures import construct_continuous_futures
-from .execution.schedule import generate_cost_aware_schedule
-from .execution.sizing import weights_to_contracts
+from .execution import plan_orders, weights_to_contracts
 from .optimizer.erc import erc
 from .optimizer.turnover import penalized_band_weights
 from .reporting.rule_18f4 import generate_18f4_report
@@ -100,8 +99,8 @@ def run_daily_cycle(
     # 2. Signals
     trend_signal = volatility_scaled_momentum(prices).iloc[-1]
     carry_signal = equity_carry(dividend_yield, financing_rate).iloc[-1]
-    weights_regime = train_logistic_regime_model(features, regime_labels)
-    regime_prob = predict_regime_probability(features, weights_regime).iloc[-1]
+    regime_model = train_logistic_regime_model(features, regime_labels)
+    regime_prob = predict_regime_probability(features, regime_model).iloc[-1]
     raw_target = (trend_signal + carry_signal) / 2.0
     if raw_target.abs().sum() > 0:
         raw_target = raw_target / raw_target.abs().sum()
@@ -122,11 +121,30 @@ def run_daily_cycle(
 
     # 5. Execution
     latest_prices = prices.iloc[-1]
-    contracts = weights_to_contracts(
+    target_contracts = weights_to_contracts(
         target_weights, latest_prices, multipliers, fx_rates, capital
+    ).iloc[0]
+    current_positions = weights_to_contracts(
+        current_weights, latest_prices, multipliers, fx_rates, capital
+    ).iloc[0]
+    market_data = {
+        "prices": latest_prices,
+        "multipliers": multipliers,
+        "fx_rates": fx_rates,
+        "capital": capital,
+        "spread": pd.Series(0.0, index=latest_prices.index),
+        "volatility": returns.std(),
+        "volume": contract_data.groupby("asset")["volume"].last(),
+        "costs": cost_estimates,
+        "days_to_expiry": (
+            contract_data.groupby("asset")["expiry"].last()
+            - contract_data.groupby("asset")["date"].last()
+        ).dt.days,
+    }
+    schedule, slippage_costs = plan_orders(
+        target_weights, current_positions, market_data
     )
-    total_qty = float(contracts.sum().sum())
-    schedule = generate_cost_aware_schedule(total_qty, cost_estimates)
+    orders = target_contracts - current_positions
 
     # 6. Reporting
     report = generate_18f4_report(
@@ -148,8 +166,9 @@ def run_daily_cycle(
             "margin": margin,
             "drawdown": float(drawdown),
         },
-        "orders": contracts,
+        "orders": orders,
         "schedule": schedule,
+        "slippage_costs": slippage_costs,
         "report": report,
     }
 

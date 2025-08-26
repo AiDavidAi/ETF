@@ -1,5 +1,6 @@
 import os
 import sys
+
 import pandas as pd
 import pytest
 
@@ -20,3 +21,9 @@ def test_allocate_cayman_limit():
     w = pd.DataFrame({"CL": [0.3]})
     with pytest.raises(ValueError):
         allocate_cayman(w, ["CL"], limit=0.25)
+
+
+def test_allocate_cayman_unknown_symbol():
+    w = pd.DataFrame({"ES": [0.5]})
+    with pytest.raises(ValueError):
+        allocate_cayman(w, ["CL"])
