@@ -1,53 +1,77 @@
-import numpy as np
+"""Regime classification using logistic regression."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import List
+
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+
+
+@dataclass
+class LogisticRegimeModel:
+    """Container for a fitted logistic regression regime model."""
+
+    model: LogisticRegression
+    scaler: StandardScaler
+    columns: List[str]
 
 
 def train_logistic_regime_model(
-    features: pd.DataFrame, labels: pd.Series, lr: float = 0.1, epochs: int = 1000
-) -> pd.Series:
-    """Train a simple logistic regression model for regime classification.
+    features: pd.DataFrame,
+    labels: pd.Series,
+    *,
+    C: float = 1.0,
+    penalty: str = "l2",
+    solver: str = "lbfgs",
+) -> LogisticRegimeModel:
+    """Train a logistic regression model for regime classification.
 
     Parameters
     ----------
-    features : pd.DataFrame
+    features
         Feature matrix indexed by date.
-    labels : pd.Series
+    labels
         Binary labels where 1 indicates risk-off.
-    lr : float, optional
-        Learning rate for gradient descent.
-    epochs : int, optional
-        Number of optimization iterations.
+    C
+        Inverse of regularization strength passed to ``LogisticRegression``.
+    penalty
+        Regularization penalty to apply.
+    solver
+        Optimization algorithm used by ``LogisticRegression``.
 
     Returns
     -------
-    pd.Series
-        Learned weights including a bias term.
+    LogisticRegimeModel
+        Fitted logistic regression model and feature scaler.
     """
 
+    scaler = StandardScaler()
+    model = LogisticRegression(C=C, penalty=penalty, solver=solver)
+
     if features.empty:
-        return pd.Series(dtype=float)
+        return LogisticRegimeModel(
+            model=model, scaler=scaler, columns=list(features.columns)
+        )
 
-    X = features.values
-    y = labels.values.astype(float)
-    X_b = np.c_[np.ones(len(X)), X]
-    w = np.zeros(X_b.shape[1])
-
-    for _ in range(epochs):
-        z = X_b @ w
-        p = 1.0 / (1.0 + np.exp(-z))
-        gradient = X_b.T @ (p - y) / len(y)
-        w -= lr * gradient
-
-    index = ["bias"] + list(features.columns)
-    return pd.Series(w, index=index)
+    X = scaler.fit_transform(features.values)
+    model.fit(X, labels.values)
+    return LogisticRegimeModel(
+        model=model, scaler=scaler, columns=list(features.columns)
+    )
 
 
-def predict_regime_probability(features: pd.DataFrame, weights: pd.Series) -> pd.Series:
-    """Predict risk-off probabilities using logistic regression weights."""
+def predict_regime_probability(
+    features: pd.DataFrame, regime_model: LogisticRegimeModel
+) -> pd.Series:
+    """Predict risk-off probabilities using a trained regime model."""
+
     if features.empty:
         return pd.Series(index=features.index, dtype=float)
 
-    X_b = np.c_[np.ones(len(features)), features.values]
-    w = weights.reindex(["bias"] + list(features.columns)).fillna(0.0).values
-    probs = 1.0 / (1.0 + np.exp(-(X_b @ w)))
+    aligned = features.reindex(columns=regime_model.columns).fillna(0.0).values
+    X = regime_model.scaler.transform(aligned)
+    probs = regime_model.model.predict_proba(X)[:, 1]
     return pd.Series(probs, index=features.index)
