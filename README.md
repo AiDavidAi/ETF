@@ -23,6 +23,17 @@ python -m src.pipeline --ticker SPY
 
 Add `--start YYYY-MM-DD --end YYYY-MM-DD` to specify a date range or use `--dry-run` for generated sample data.
 
+### ETF recommendations
+
+Rank ETFs by recent performance using real price data:
+
+```
+python -m src.recommendations SPY VTI QQQ --lookback 60 --top 2
+```
+
+The command downloads historical prices via `yfinance` and prints the
+top-performing ETFs over the lookback window.
+
 ## Table of Contents
 
 - [Trend-Following Signal Construction](#trend-following-signal-construction)
